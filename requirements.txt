@@ -1,0 +1,2 @@
+#Packages
+sympy==1.12 
