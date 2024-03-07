@@ -1,8 +1,8 @@
 import random
 from sympy import *
-from sympy.logic.boolalg import truth_table
-from sympy.utilities.iterables import ibin
-from sympy.abc import p,q
+#from sympy.logic.boolalg import truth_table
+#from sympy.utilities.iterables import ibin
+
 
 
 
@@ -15,7 +15,7 @@ class LogicProofTutor:
     # Dictionary mapping user-defined operators to Python operators.
     user_to_python_operators = {'∧': '&', '∨': '|', '¬': '~', '→': '>>', '⊕': '^'}
     # Set containing valid alphabets and characters for propositional statements.
-    validAlpha = {"p","q"," ","(",")", "a"}   
+    validAlpha = {"p","q"," ","(",")", "a", ","}   
     # Initializing an empty string for user input.
     user_input = ""
     
@@ -27,39 +27,51 @@ class LogicProofTutor:
         self.conclusion = []
         self.user_profile = {'correct_steps': 0, 'total_steps': 0}
     
-    # Method to get a propositional premise statement from the user.  
     def get_user_proposition(self):
         while True:
-            # Prompting user for input.
-            user_input = input("Enter a propositional statement: ").strip()
-            if user_input:
-                    # Checking syntax validity.
-                    while not self.check_syntax(user_input):
-                        # Prompting again if syntax is invalid.
-                        user_input = input("Enter a valid propositional premise statement: ").strip()
-                        # Converting user input to Sympy expression.
-                    parsed_expr = self.convert_to_sympy(user_input)
-                    # Adding the user input to the premises list.
-                    self.premises.append(user_input)
-                    # Returning the parsed expression.
-                    return parsed_expr
+            user_input = input("Enter propositional premise statements separated by a comma: ")
+            premise_list = user_input.split(',')
+            all_premises_valid = True  # Flag to track if all premises are valid
+
+            for premise in premise_list:
+                premise = premise.strip()  # Remove leading/trailing whitespace
+                if not self.check_syntax(premise):
+                    all_premises_valid = False
+                    break  # Exit the loop as there's an invalid premise
+
+                try:
+                    self.convert_to_sympy(premise)  # Attempt to convert premise to sympy
+                except (ValueError, SympifyError):
+                    all_premises_valid = False
+                    break  # Exit the loop as there's an invalid premise
+
+            if all_premises_valid:
+                self.premises.extend(premise_list) # All premises are valid; append them to the list
+                break  # Exit the while loop as we've successfully got all valid premises
+
+
+                    
                 
-    # Method to get a propositional goal statement from the user.
     def get_user_conclusion(self):
         while True:
-            # Prompting user for input.
             user_input = input("Enter a propositional goal statement: ").strip()
             if user_input:
-                    # Checking syntax validity.
-                    while not self.check_syntax(user_input):
-                        # Prompting again if syntax is invalid.
+                # Keep asking until a valid statement is entered
+                while True:
+                    try:
+                        # Attempt to check syntax and convert the conclusion
+                        if not self.check_syntax(user_input):
+                            raise ValueError("Invalid syntax. Please enter a valid propositional goal statement.")
+                        parsed_expr = self.convert_to_sympy(user_input)
+                        # If successful, add to conclusions and break the loop
+                        self.conclusion.append(user_input)
+                        break  # Exit loop on successful conversion
+                    except (ValueError, SympifyError):
+                        # If either check_syntax fails or convert_to_sympy raises SympifyError, ask for input again
                         user_input = input("Enter a valid propositional goal statement: ").strip()
-                    # Converting user input to Sympy expression.
-                    parsed_expr = self.convert_to_sympy(user_input)
-                    # Adding the user input to the conclusion list.
-                    self.conclusion.append(user_input)
-                    # Returning the parsed expression.
-                    return parsed_expr
+
+                return parsed_expr  # Return the valid parsed expression
+                    
 
     # Method to convert user-defined operators to Python operators in a given statement.            
     def convert_to_python_operators(self, user_input):
@@ -80,74 +92,112 @@ class LogicProofTutor:
             # Returning the parsed expression.
             return parsed_expr
         except SympifyError:
-                print("Conversion error from userOperators to pythonOperators.") 
-                
+                print("Conversion error. Input a valid statement.") 
+                raise
     
-    # Method to check the syntax of a propositional statement.
     def check_syntax(self, user_input):
-        # Initializing a stack for checking bracket balance.
-        stack = []
-        # Variable to track consecutive letters.
-        consecutive_letters = None
-        
-        # Iterating through each character in the user input.
+        stack = []  # Stack to track opening brackets
+        last_char = None  # Variable to track last character
+
         for char in user_input:
-            # If the character is an opening bracket.
             if char == '(':
-                # Pushing onto the stack.
-                stack.append(char)
-            # If the character is a closing bracket.
+                stack.append(char)  # Push opening bracket onto stack
             elif char == ')':
-                # If stack is empty or mismatched bracket.
-                if not stack or stack.pop() != '(':
-                    # Printing error message.
+                if not stack or stack.pop() != '(':  # If closing bracket found but no opening bracket in stack or mismatched brackets
                     print("Invalid Syntax. Unbalanced brackets.")
-                    # Returning False for invalid syntax
                     return False
-            # If the character is an alphabet.
-            elif char.isalpha():
-                # If consecutive letters are found.
-                if consecutive_letters and consecutive_letters.isalpha():
-                    # Printing error message.
-                    print("Invalid syntax. Consecutive letters are not allowed.")
-                    return False
-                # Updating consecutive letters.
-                consecutive_letters = char
-                
-             # If character is not a valid operator or alphabet.       
-            if char not in self.userOperators and char not in self.validAlpha:
+            elif char not in self.validAlpha and char not in self.userOperators:
                 print(char + " is Invalid syntax. Please enter a valid propositional statement.")
                 return False
-        # If stack is not empty after iteration.   
-        if stack:
+            elif char.isalpha():
+                if last_char and last_char.isalpha():  # If consecutive letters found
+                    print("Invalid syntax. Consecutive letters are not allowed.")
+                    return False
+
+
+            last_char = char  # Update last character seen
+
+        if stack:  # If stack is not empty after iteration, unbalanced brackets
             print("Invalid syntax. Unbalanced brackets.")
             return False
-         # Returning True for valid syntax.
-        return True
+
+        return True  # Return True for valid syntax
+
+
+            
     
     
-    def check_premises_to_conclusion(self, user_input):
-        vars = [p,q]
-        user_input = self.convert_to_sympy(self.user_input)
-        values = truth_table(user_input, vars, input=True)
-        values = list(values)
-        print(values)
+    # def check_premises_to_conclusion(self):
+    #     premise_expr = self.get_user_proposition()
+    #     conlusion_expr = self.get_user_conclusion()
+    #     vars = [p,q]
+    #     values = truth_table(premise_expr, vars, input=True)
+    #     values = list(values)
+    #     print(values)
 
 
 
     def display_problem(self):
         if self.premises and self.conclusion:
             print("Current Problem:")
-            print(self.premises[0] + " ⊢ " + self.conclusion[0])
+            premises_str = " , ".join(self.premises)
+            print(f"{premises_str} ⊢ {self.conclusion[0]}")
         else:
             print("No problem is provided yet.")
         
 
+    # def get_user_input(self):
+    #     while True:
+    #         user_input = input("Enter your logical proof step: ")
+    #         if self.check_syntax(user_input):
+    #             return user_input
+    
+    def initialize_proof_with_premises(self):
+        for i, premise in enumerate(self.premises, start=1):
+            print(f"Premise/LineDep: Premise  LineNumber: ({i})  ProofStep: {premise} RuleApplied: None")
+            
+    def validate_line_dep(self, line_dep):
+        # Check if the input is exactly "Premise"
+        if line_dep == "Premise":
+            return True
+        # Check if the input is a series of numbers, possibly separated by commas
+        elif line_dep.replace(",", "").isdigit():
+            # Further check if after splitting by ',', each part is a digit
+            parts = line_dep.split(",")
+            return all(part.isdigit() for part in parts)
+        else:
+            # If the input is neither "Premise" nor a series of numbers, it's invalid
+            return False
+    
     def get_user_input(self):
+        line_number = len(self.premises) + 1  # Starting from next line after premises
         while True:
-            user_input = input("Enter your logical proof step: ")
-            if self.check_syntax(user_input):
-                return user_input
+            
+            line_dep = input("Premise/LineDep: ").strip()
+            # Validate the Premise/LineDep input
+            while not self.validate_line_dep(line_dep):
+                print("Invalid input for Premise/LineDep. Please enter 'Premise' or line numbers like '1' or '1,2,3'.")
+                line_dep = input("Premise/LineDep: ").strip()
+                
+            # Auto-generate and display LineNumber based on current line number
+            print(f"LineNumber: ({line_number})")
+            proof_step = input("ProofStep: ").strip()
+            
+            while not self.check_syntax(proof_step):
+                proof_step = input("Enter a valid propositional statement: ").strip()
+            rule_applied = input("RuleApplied: ").strip()
+
+            # Constructing the formatted user input
+            user_input_formatted = f"Premise/LineDep: {line_dep}  LineNumber: ({line_number})  ProofStep: {proof_step} RuleApplied: {rule_applied}"
+
+            # Printing the formatted user input in the desired format
+            print(user_input_formatted)
+
+            # Increment line number for next input
+            line_number += 1
+
+
+
 
     def evaluate_user_input(self, user_input):
         # Simplified evaluation logic - replace with actual proof evaluation
@@ -171,6 +221,7 @@ class LogicProofTutor:
         self.get_user_conclusion()
         while self.premises:
             self.display_problem()
+            self.initialize_proof_with_premises()
             user_input = self.get_user_input()
             self.evaluate_user_input(user_input)
             self.display_feedback()
