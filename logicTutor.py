@@ -2,14 +2,14 @@ import random
 from sympy import *
 #from sympy.logic.boolalg import truth_table
 #from sympy.utilities.iterables import ibin
-
+from proofRules import ruleChecker
 
 
 
 class LogicProofTutor:
  
     # Set containing user-defined logical operators.
-    userOperators = {'^','∨','¬','→','⊕','↔'}
+    userOperators = {'∧','∨','¬','→','⊕','↔'}
     # Set containing corresponding Python logical operators.
     pythonOperators = {'&','|','~','>>','^'}
     # Dictionary mapping user-defined operators to Python operators.
@@ -26,6 +26,8 @@ class LogicProofTutor:
         # List to store conclusions.
         self.conclusion = []
         self.user_profile = {'correct_steps': 0, 'total_steps': 0}
+        self.proof_steps = {}
+
     
     def get_user_proposition(self):
         while True:
@@ -145,16 +147,28 @@ class LogicProofTutor:
         else:
             print("No problem is provided yet.")
         
-
-    # def get_user_input(self):
-    #     while True:
-    #         user_input = input("Enter your logical proof step: ")
-    #         if self.check_syntax(user_input):
-    #             return user_input
+       
     
     def initialize_proof_with_premises(self):
-        for i, premise in enumerate(self.premises, start=1):
-            print(f"Premise/LineDep: Premise  LineNumber: ({i})  ProofStep: {premise} RuleApplied: None")
+        # Start with line number 1 for the first premise
+        line_number = 1
+        
+        # Iterate over each premise in self.premises
+        for premise in self.premises:
+            # Add the premise to self.proof_steps with the current line number as the key
+            # The value is a dictionary with details about this proof step
+            self.proof_steps[line_number] = {
+                'step': premise,     # The proposition for this step
+                'type': 'Premise',   # Indicating this step is a premise
+                'rule': None         # No rule applied to premises, they are given
+            }
+            
+            # Print the premise in a formatted way for display
+            print(f"Premise/LineDep: Premise  LineNumber: ({line_number})  ProofStep: {premise} RuleApplied: Given")
+            
+            # Increment the line number for the next premise
+            line_number += 1
+
             
     def validate_line_dep(self, line_dep):
         # Check if the input is exactly "Premise"
@@ -169,32 +183,44 @@ class LogicProofTutor:
             # If the input is neither "Premise" nor a series of numbers, it's invalid
             return False
     
+
     def get_user_input(self):
-        line_number = len(self.premises) + 1  # Starting from next line after premises
+        line_number = len(self.premises) + 1  # Starting from the next line after the premises
+
         while True:
-            
             line_dep = input("Premise/LineDep: ").strip()
             # Validate the Premise/LineDep input
             while not self.validate_line_dep(line_dep):
                 print("Invalid input for Premise/LineDep. Please enter 'Premise' or line numbers like '1' or '1,2,3'.")
                 line_dep = input("Premise/LineDep: ").strip()
-                
-            # Auto-generate and display LineNumber based on current line number
+
+            # Auto-generate and display LineNumber based on the current line number
             print(f"LineNumber: ({line_number})")
-            proof_step = input("ProofStep: ").strip()
-            
-            while not self.check_syntax(proof_step):
-                proof_step = input("Enter a valid propositional statement: ").strip()
-            rule_applied = input("RuleApplied: ").strip()
 
-            # Constructing the formatted user input
-            user_input_formatted = f"Premise/LineDep: {line_dep}  LineNumber: ({line_number})  ProofStep: {proof_step} RuleApplied: {rule_applied}"
+            valid_rule_applied = False
+            while not valid_rule_applied:
+                proof_step = input("ProofStep: ").strip()
 
-            # Printing the formatted user input in the desired format
-            print(user_input_formatted)
+                while not self.check_syntax(proof_step):
+                    proof_step = input("Enter a valid propositional statement: ").strip()
 
-            # Increment line number for next input
-            line_number += 1
+                rule_applied = input("RuleApplied: ").strip()
+                rule_check_result, message = ruleChecker(proof_step, rule_applied, self.proof_steps)
+
+                if rule_check_result:
+                    valid_rule_applied = True  # Exit the loop if the rule is valid
+                    #print(f"Rule applied correctly: {message}")
+                    # Add the proof step to self.proof_steps
+                    self.proof_steps[line_number] = {'line_dep': line_dep, 'step': proof_step, 'rule': rule_applied}
+                    # Construct and print the formatted user input
+                    user_input_formatted = f"Premise/LineDep: {line_dep}  LineNumber: ({line_number})  ProofStep: {proof_step} RuleApplied: {rule_applied}"
+                    print(user_input_formatted)
+                else:
+                    print(f"Rule application error: {message}")  # Show the error message and prompt for rule application again
+
+            line_number += 1  # Increment the line number for the next input
+
+            # Add a condition or mechanism to exit this loop, for example, a user command to end input or a check to see if the proof is complete.
 
 
 
