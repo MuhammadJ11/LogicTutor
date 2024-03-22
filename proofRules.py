@@ -48,10 +48,20 @@ class ProofRules:
             return False, f"Referenced line number {e.args[0]} does not exist in proof steps."
 
         # Construct the expected proof step based on the ∧I rule
-        expected_proof_step = f"{line_props[0]} ∧ {line_props[1]}" or f"{line_props[1]} ∧ {line_props[0]}"
+        #expected_proof_step = f"{line_props[0]} ∧ {line_props[1]}" or f"{line_props[1]} ∧ {line_props[0]}"
+        expected_proof_step = [
+        f"({line_props[0]}) ∧ ({line_props[1]})",  # With brackets around both propositions
+        f"{line_props[0]} ∧ {line_props[1]}",  # Without brackets
+        f"({line_props[0]}) ∧ {line_props[1]}",  # With bracket around the first proposition
+        f"{line_props[0]} ∧ ({line_props[1]})", # With bracket around the second proposition
+        f"({line_props[1]}) ∧ ({line_props[0]})",
+        f"{line_props[1]} ∧ {line_props[0]}", 
+        f"({line_props[1]}) ∧ {line_props[0]}",  
+        f"{line_props[1]} ∧ ({line_props[0]})"   
+        ]
         
         # Check if the constructed proof step matches the user's proof step
-        if proof_step == expected_proof_step:
+        if proof_step in expected_proof_step:
             return True, "∧I rule applied correctly."
         else:
             return False, f"∧I rule not applied correctly. Expected step: {expected_proof_step}"
@@ -71,12 +81,15 @@ class ProofRules:
             line_ref = int(line_ref_str)
         except ValueError:
             return False, "Line reference must be an integer."
-
+        
         # Retrieve the proposition from the referenced line
         try:
             line_prop = self.proof_steps[line_ref]['step']
         except KeyError as e:
             return False, f"Referenced line number {e.args[0]} does not exist in proof steps."
+        
+        # Remove brackets for comparison, if present
+        line_prop = line_prop.strip("()")
 
         # Check if the referenced line's proposition is a conjunction
         if '∧' not in line_prop:
@@ -116,16 +129,58 @@ class ProofRules:
             line_prop = self.proof_steps[line_refs[0]]['step']
         except KeyError as e:
             return False, f"Referenced line number {e.args[0]} does not exist in proof steps."
+        
+        # Remove outer brackets from proof_step for comparison, if present
+        proof_step_normalized = proof_step.strip("()")
 
        # Check if the proof_step is in the form "line_prop ∨ something" or "something ∨ line_prop"
-        if proof_step.startswith(line_prop + " ∨") or proof_step.endswith("∨ " + line_prop):
+        if proof_step_normalized.startswith(line_prop + " ∨") or proof_step_normalized.endswith("∨ " + line_prop):
             return True, "∨I rule applied correctly."
         else:
             return False, "∨I rule not applied correctly. The proof step must include the proposition from the referenced line followed by '∨' and any other proposition."
 
-    def or_elimination(self, proof_step):
-        # Implement the logic for checking if the or-elimination rule is correctly applied in proof_step
-        pass
+    def or_elimination(self, proof_step, rule_applied):
+        # Split the rule_applied string to get the line references and the rule abbreviation
+        try:
+            line_refs_str, rule = rule_applied.split(" ")
+            if rule != "∨E":
+                return False, "The rule applied is not or elimination (∨E)."
+            disjunction_ref, assumption1_ref, conclusion1_ref, assumption2_ref, conclusion2_ref = map(int, line_refs_str.split(","))
+        except ValueError:
+            return False, "Rule applied format is incorrect. Expected format: '1,2,5,6,11 ∨E'."
+
+        # Retrieve and check the disjunction
+        try:
+            disjunction = self.proof_steps[disjunction_ref]['step']
+        except KeyError:
+            return False, f"Referenced disjunction line number {disjunction_ref} does not exist in proof steps."
+        if '∨' not in disjunction:
+            return False, "The referenced line's proposition is not a disjunction."
+
+        # Check the assumptions
+        try:
+            assumption1 = self.proof_steps[assumption1_ref]['step']
+            assumption2 = self.proof_steps[assumption2_ref]['step']
+        except KeyError as e:
+            return False, f"Referenced assumption line number {e.args[0]} does not exist in proof steps."
+
+        # Retrieve and check the conclusions derived from the assumptions
+        try:
+            conclusion1 = self.proof_steps[conclusion1_ref]['step']
+            conclusion2 = self.proof_steps[conclusion2_ref]['step']
+        except KeyError as e:
+            return False, f"Referenced conclusion line number {e.args[0]} does not exist in proof steps."
+
+        # Check if the conclusions match the proof step
+        if conclusion1 != proof_step or conclusion2 != proof_step:
+            return False, "The conclusions derived from the assumptions do not match the proof step."
+
+        # Check if the disjunction matches the assumptions
+        if assumption1 not in disjunction or assumption2 not in disjunction:
+            return False, "The assumptions do not match the disjunction."
+
+        return True, "∨E rule applied correctly."
+
 
     def implies_introduction(self, proof_step, rule_applied):
         try:
@@ -176,9 +231,49 @@ class ProofRules:
 
 
 
-    def implies_elimination(self, proof_step):
-        # Implement the logic for checking if the implies-elimination rule is correctly applied in proof_step
-        pass
+    def implies_elimination(self, proof_step, rule_applied):
+        # Split the rule_applied string to get the line references and the rule abbreviation (Modus Ponens)
+        try:
+            line_refs_str, rule = rule_applied.split(" ")
+            if rule != "→E":
+                return False, "The rule applied is not implies elimination (→E)."
+            line_refs = list(map(int, line_refs_str.split(",")))
+            if len(line_refs) != 2:
+                return False, "Expected two line references for →E rule."
+        except ValueError:
+            return False, "Rule applied format is incorrect. Expected format: '1,2 →E', where 1 is the line with A → B and 2 is the line with A, or vice versa."
+
+        # Retrieve propositions from the referenced lines
+        try:
+            proposition1 = self.proof_steps[line_refs[0]]['step']
+            proposition2 = self.proof_steps[line_refs[1]]['step']
+        except KeyError as e:
+            return False, f"Referenced line number {e.args[0]} does not exist in proof steps."
+
+        # Determine which proposition is the implication and which is the antecedent
+        if '→' in proposition1:
+            implication, antecedent = proposition1, proposition2
+        elif '→' in proposition2:
+            implication, antecedent = proposition2, proposition1
+        else:
+            return False, "Neither of the referenced lines contains an implication."
+
+        # Split the implication to get A and B
+        parts = implication.split('→')
+        if len(parts) != 2:
+            return False, "Invalid implication format."
+        antecedent_part, consequent_part = parts
+
+        # Check if the antecedent from the proof matches A from the implication
+        if antecedent.strip() != antecedent_part.strip():
+            return False, "The antecedent from the proof does not match the antecedent in the implication."
+
+        # Check if the conclusion B is the proof step
+        if consequent_part.strip() != proof_step.strip():
+            return False, "The proof step does not match the consequent of the implication." 
+
+        return True, "→E rule applied correctly."
+
     
     def is_contradiction(self, start_line, end_line):
         try:
@@ -239,17 +334,49 @@ class ProofRules:
         # Check if the proof step is the negation of the assumption at the start line
         try:
             assumption = self.proof_steps[start_line]['step']
-            expected_proof_step = f"¬({assumption})"
+            expected_proof_step = f"¬({assumption})" or f"¬{assumption}"
             if proof_step != expected_proof_step:
                 return False, f"¬I rule not applied correctly. Expected step: {expected_proof_step}"
         except KeyError:
             return False, f"Referenced line number {start_line} does not exist in proof steps."
 
         return True, "¬I rule applied correctly."
+    
 
-    def not_elimination(self, proof_step):
-        # Implement the logic for checking if the not-elimination rule is correctly applied in proof_step
-        pass
+    def not_elimination(self, proof_step, rule_applied):
+        # Split the rule_applied string to get the line reference and the rule abbreviation
+        try:
+            line_ref_str, rule = rule_applied.split(" ")
+            if rule != "¬E":
+                return False, "The rule applied is not negation elimination (¬E)."
+            negation_line_ref = int(line_ref_str)
+        except ValueError:
+            return False, "Rule applied format is incorrect. Expected format: '1 ¬E', where 1 is the line with ¬¬A or ¬(¬A)."
+
+        # Retrieve and check the negation or potential double negation
+        try:
+            negation = self.proof_steps[negation_line_ref]['step']
+        except KeyError:
+            return False, f"Referenced negation line number {negation_line_ref} does not exist in proof steps."
+
+        # Check for double negation ¬¬A and simplify to A
+        if negation.startswith("¬¬"):
+            simplified = negation[2:]  # Remove the first two characters '¬¬' to get A
+        elif negation.startswith("¬(¬"):
+            if negation.endswith(")"):
+                simplified = negation[3:-1]  # Remove '¬(¬' from the start and ')' from the end to get A
+            else:
+                return False, "The negation format is incorrect. Expected ¬(¬A)."
+        else:
+            return False, "¬E rule is not applicable or the statement does not involve a negation pattern that can be eliminated."
+
+        # Compare the simplified statement to the proof_step
+        if simplified.strip() == proof_step.strip():
+            return True, "¬E rule applied correctly for double negation elimination."
+        else:
+            return False, "The proof step does not match the statement obtained by removing double negation."
+
+
 
     def iff_introduction(self, proof_step):
         # Implement the logic for checking if the iff-introduction (if and only if) rule is correctly applied in proof_step
@@ -291,8 +418,12 @@ def ruleChecker(proof_step, rule_applied, proof_steps):
         return rules.not_introduction(proof_step,rule_applied)
     elif rule == "∧E":
         return rules.and_elimination(proof_step,rule_applied)
+    elif rule == "∨E":
+        return rules.or_elimination(proof_step,rule_applied)
+    elif rule == "→E":
+        return rules.implies_elimination(proof_step,rule_applied)
+    elif rule == "¬E":
+        return rules.not_elimination(proof_step,rule_applied)
     
-    # Add additional elif blocks here for other rules
-
     # If the rule abbreviation doesn't match any known rule, return an error message
     return False, "Unknown rule."

@@ -9,7 +9,7 @@ from proofRules import ruleChecker
 class LogicProofTutor:
  
     # Set containing user-defined logical operators.
-    userOperators = {'∧','∨','¬','→','⊕','↔'}
+    userOperators = {'∧','∨','¬','→','⊕'} #'↔'
     # Set containing corresponding Python logical operators.
     pythonOperators = {'&','|','~','>>','^'}
     # Dictionary mapping user-defined operators to Python operators.
@@ -90,7 +90,7 @@ class LogicProofTutor:
             converted_user_input = self.convert_to_python_operators(user_input)
              # Parsing the converted input using sympify.
             parsed_expr = sympify(converted_user_input)
-            print(parsed_expr)
+            #print(parsed_expr)
             # Returning the parsed expression.
             return parsed_expr
         except SympifyError:
@@ -126,19 +126,6 @@ class LogicProofTutor:
         return True  # Return True for valid syntax
 
 
-            
-    
-    
-    # def check_premises_to_conclusion(self):
-    #     premise_expr = self.get_user_proposition()
-    #     conlusion_expr = self.get_user_conclusion()
-    #     vars = [p,q]
-    #     values = truth_table(premise_expr, vars, input=True)
-    #     values = list(values)
-    #     print(values)
-
-
-
     def display_problem(self):
         if self.premises and self.conclusion:
             print("Current Problem:")
@@ -159,7 +146,7 @@ class LogicProofTutor:
             # The value is a dictionary with details about this proof step
             self.proof_steps[line_number] = {
                 'step': premise,     # The proposition for this step
-                'type': 'Premise',   # Indicating this step is a premise
+                'line_dep': 'Premise',   # Indicating this step is a premise
                 'rule': None         # No rule applied to premises, they are given
             }
             
@@ -185,44 +172,78 @@ class LogicProofTutor:
     
 
     def get_user_input(self):
+        initial_premises_count = len(self.premises)  # Count the number of given premises at the start
         line_number = len(self.premises) + 1  # Starting from the next line after the premises
+        
 
         while True:
+            print(f"LineNumber: ({line_number})")
             line_dep = input("Premise/LineDep: ").strip()
+
             # Validate the Premise/LineDep input
             while not self.validate_line_dep(line_dep):
                 print("Invalid input for Premise/LineDep. Please enter 'Premise' or line numbers like '1' or '1,2,3'.")
                 line_dep = input("Premise/LineDep: ").strip()
 
-            # Auto-generate and display LineNumber based on the current line number
-            print(f"LineNumber: ({line_number})")
+            proof_step_input = input("ProofStep: ").strip()
+            while not self.check_syntax(proof_step_input):
+                print("Invalid syntax. Please enter a valid propositional statement.")
+                proof_step_input = input("ProofStep: ").strip()
 
-            valid_rule_applied = False
-            while not valid_rule_applied:
-                proof_step = input("ProofStep: ").strip()
+            rule_applied = input("RuleApplied: ").strip()
+            rule_check_result, message = ruleChecker(proof_step_input, rule_applied, self.proof_steps)
 
-                while not self.check_syntax(proof_step):
-                    proof_step = input("Enter a valid propositional statement: ").strip()
-
+            while not rule_check_result:
+                print(f"Rule application error: {message}")
                 rule_applied = input("RuleApplied: ").strip()
-                rule_check_result, message = ruleChecker(proof_step, rule_applied, self.proof_steps)
-
-                if rule_check_result:
-                    valid_rule_applied = True  # Exit the loop if the rule is valid
-                    #print(f"Rule applied correctly: {message}")
-                    # Add the proof step to self.proof_steps
-                    self.proof_steps[line_number] = {'line_dep': line_dep, 'step': proof_step, 'rule': rule_applied}
-                    # Construct and print the formatted user input
-                    user_input_formatted = f"Premise/LineDep: {line_dep}  LineNumber: ({line_number})  ProofStep: {proof_step} RuleApplied: {rule_applied}"
-                    print(user_input_formatted)
+                rule_check_result, message = ruleChecker(proof_step_input, rule_applied, self.proof_steps)
+                
+            self.proof_steps[line_number] = {'line_dep': line_dep, 'step': proof_step_input, 'rule': rule_applied}
+            user_input_formatted = f"Premise/LineDep: {line_dep}  LineNumber: ({line_number})  ProofStep: {proof_step_input} RuleApplied: {rule_applied}"
+            print(user_input_formatted)
+     
+            # User prompt for the next action, with pressing "Enter" to add another step
+            check_or_continue = input("Press 'Enter' to add another step, 'Check' to verify the proof or 'Reset' to restart your proof: ").strip().lower()
+            if check_or_continue == 'check':
+                if self.check_proof_completion():
+                    for ln, details in self.proof_steps.items():
+                        formatted_step = f"Premise/LineDep: {details['line_dep']}  LineNumber: ({ln})  ProofStep: {details['step']} RuleApplied: {details['rule']}"
+                        print(formatted_step)
+                    break  # Exit the loop since the proof is complete
                 else:
-                    print(f"Rule application error: {message}")  # Show the error message and prompt for rule application again
+                    print("The proof is not yet complete. Continue adding proof steps or check again.")
+            elif check_or_continue == 'reset':
+                print("Resetting your proof. Keeping premises only.")
+                # Reset proof steps, keeping only premises
+                self.proof_steps = {ln: self.proof_steps[ln] for ln in range(1, initial_premises_count + 1)}
+                line_number = len(self.premises) + 1  # Reset line number to start after premises
+                continue  # Continue to allow the user to restart entering proof steps
 
             line_number += 1  # Increment the line number for the next input
+
 
             # Add a condition or mechanism to exit this loop, for example, a user command to end input or a check to see if the proof is complete.
 
 
+            # Add a condition or mechanism to exit this loop, for example, a user command to end input or a check to see if the proof is complete.
+
+    def check_proof_completion(self):
+        try:
+            # Retrieve the last proof step
+            last_proof_step = self.proof_steps[max(self.proof_steps.keys())]['step']
+            # Convert the conclusion to a Sympy expression for comparison
+            conclusion_sympy = (self.conclusion[0])
+
+            # Compare the last proof step with the conclusion
+            if (last_proof_step)==(conclusion_sympy):
+                print("The proof successfully concludes with the given conclusion. Well done!")
+                return True
+            else:
+                print("The proof does not conclude with the given conclusion. Please review your steps.")
+                return False
+        except (ValueError, KeyError) as e:
+            print(f"Error checking proof: {e}")
+            return False
 
 
     def evaluate_user_input(self, user_input):
@@ -243,6 +264,7 @@ class LogicProofTutor:
 
     def start_tutor(self):
         print("Welcome to the Logic and Proof Tutor CLI!")
+        print("Propositional connectives = ∧ , ∨ , ¬ , → ")
         self.get_user_proposition()
         self.get_user_conclusion()
         while self.premises:
