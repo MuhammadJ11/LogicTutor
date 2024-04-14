@@ -1,8 +1,7 @@
 import random
 from sympy import *
-#from sympy.logic.boolalg import truth_table
-#from sympy.utilities.iterables import ibin
 from proofRules import ruleChecker
+from hints import Hints
 
 
 
@@ -25,8 +24,9 @@ class LogicProofTutor:
         self.premises = [] 
         # List to store conclusions.
         self.conclusion = []
-        self.user_profile = {'correct_steps': 0, 'total_steps': 0}
         self.proof_steps = {}
+        self.hints_provider = Hints(self.premises, self.conclusion)  # Initialize Hints instance
+        self.hint_count =  {'LH': 0, 'HH': 0}  # Initialize hint counts dictionary
 
     
     def get_user_proposition(self):
@@ -50,9 +50,7 @@ class LogicProofTutor:
             if all_premises_valid:
                 self.premises.extend(premise_list) # All premises are valid; append them to the list
                 break  # Exit the while loop as we've successfully got all valid premises
-
-
-                    
+ 
                 
     def get_user_conclusion(self):
         while True:
@@ -130,7 +128,7 @@ class LogicProofTutor:
         if self.premises and self.conclusion:
             print("Current Problem:")
             premises_str = " , ".join(self.premises)
-            print(f"{premises_str} ⊢ {self.conclusion[0]}")
+            print(f"{premises_str} ⊢ {self.conclusion[0]}\n")
         else:
             print("No problem is provided yet.")
         
@@ -170,69 +168,83 @@ class LogicProofTutor:
             # If the input is neither "Premise" nor a series of numbers, it's invalid
             return False
     
-
     def get_user_input(self):
-        initial_premises_count = len(self.premises)  # Count the number of given premises at the start
-        line_number = len(self.premises) + 1  # Starting from the next line after the premises
-        
-
         while True:
+            initial_premises_count = len(self.premises)  # Count the number of given premises at the start
+            line_number = len(self.proof_steps) + 1
             print(f"LineNumber: ({line_number})")
             line_dep = input("Premise/LineDep: ").strip()
 
-            # Validate the Premise/LineDep input
+            # Validate line_dep input...
             while not self.validate_line_dep(line_dep):
                 print("Invalid input for Premise/LineDep. Please enter 'Premise' or line numbers like '1' or '1,2,3'.")
                 line_dep = input("Premise/LineDep: ").strip()
 
             proof_step_input = input("ProofStep: ").strip()
+            while not proof_step_input:  # Check if proof_step_input is empty
+                print("ProofStep cannot be empty. Please enter a valid propositional statement.")
+                proof_step_input = input("ProofStep: ").strip()
+                
             while not self.check_syntax(proof_step_input):
                 print("Invalid syntax. Please enter a valid propositional statement.")
                 proof_step_input = input("ProofStep: ").strip()
+                
+            try:
+                self.convert_to_sympy(proof_step_input)
+            except (ValueError, SympifyError):
+                proof_step_input = input("ProofStep: ").strip()
 
             rule_applied = input("RuleApplied: ").strip()
+            # Validate rule and apply it to the proof step...
             rule_check_result, message = ruleChecker(proof_step_input, rule_applied, self.proof_steps)
 
             while not rule_check_result:
                 print(f"Rule application error: {message}")
                 rule_applied = input("RuleApplied: ").strip()
                 rule_check_result, message = ruleChecker(proof_step_input, rule_applied, self.proof_steps)
+
+            self.proof_steps[line_number] = {
+                'line_dep': line_dep,
+                'step': proof_step_input,
+                'rule': rule_applied
+            }
+            
+            self.hints_provider = Hints(self.premises, self.conclusion[0])
+            while True:  # Inner loop for handling hints and other commands
+                check_or_continue = input("\nPress 'Enter' to add another step, 'Check' to verify the proof, 'Reset' to restart your proof, 'LH' for a next step hint, or 'HH' for a high-level hint: ").strip().lower()
                 
-            self.proof_steps[line_number] = {'line_dep': line_dep, 'step': proof_step_input, 'rule': rule_applied}
-            user_input_formatted = f"Premise/LineDep: {line_dep}  LineNumber: ({line_number})  ProofStep: {proof_step_input} RuleApplied: {rule_applied}"
-            print(user_input_formatted)
-     
-            # User prompt for the next action, with pressing "Enter" to add another step
-            check_or_continue = input("Press 'Enter' to add another step, 'Check' to verify the proof or 'Reset' to restart your proof: ").strip().lower()
-            if check_or_continue == 'check':
-                if self.check_proof_completion():
-                    for ln, details in self.proof_steps.items():
-                        formatted_step = f"Premise/LineDep: {details['line_dep']}  LineNumber: ({ln})  ProofStep: {details['step']} RuleApplied: {details['rule']}"
-                        print(formatted_step)
-                    break  # Exit the loop since the proof is complete
-                else:
-                    print("The proof is not yet complete. Continue adding proof steps or check again.")
-            elif check_or_continue == 'reset':
-                print("Resetting your proof. Keeping premises only.")
-                # Reset proof steps, keeping only premises
-                self.proof_steps = {ln: self.proof_steps[ln] for ln in range(1, initial_premises_count + 1)}
-                line_number = len(self.premises) + 1  # Reset line number to start after premises
-                continue  # Continue to allow the user to restart entering proof steps
+                
+                if check_or_continue == 'lh':
+                    self.hint_count['LH'] += 1  # Increment LH count
+                    print("Low-Level Hint:", self.hints_provider.get_low_level_hint())  
+                elif check_or_continue == 'hh':
+                    self.hint_count['HH'] += 1  # Increment HH count
+                    print("High-Level Hint:", self.hints_provider.get_high_level_hint())
+                elif check_or_continue == 'check':
+                    if self.check_proof_completion():
+                        print("Proof is complete and correct!")
+                        return  # Exit the method after evaluating and displaying proof steps
+                    else:
+                        print("The proof is not yet complete. Continue adding proof steps or check again.")
+                        continue  
+                elif check_or_continue == 'reset':
+                    print("Resetting your proof. Keeping premises only.")
+                    # Reset logic here...
+                    self.proof_steps = {ln: self.proof_steps[ln] for ln in range(1, initial_premises_count + 1)}
+                    line_number = len(self.premises) + 1  # Reset line number to start after premises
+                    break  # Break out of the inner loop to continue with proof steps
+                elif check_or_continue == '':
+                    break  # Break out of the inner loop to add another step
 
-            line_number += 1  # Increment the line number for the next input
+        # Additional logic here if needed after exiting the loop
 
-
-            # Add a condition or mechanism to exit this loop, for example, a user command to end input or a check to see if the proof is complete.
-
-
-            # Add a condition or mechanism to exit this loop, for example, a user command to end input or a check to see if the proof is complete.
 
     def check_proof_completion(self):
         try:
             # Retrieve the last proof step
             last_proof_step = self.proof_steps[max(self.proof_steps.keys())]['step']
             # Convert the conclusion to a Sympy expression for comparison
-            conclusion_sympy = (self.conclusion[0])
+            conclusion_sympy = self.conclusion[0]
 
             # Compare the last proof step with the conclusion
             if (last_proof_step)==(conclusion_sympy):
@@ -246,37 +258,30 @@ class LogicProofTutor:
             return False
 
 
-    def evaluate_user_input(self, user_input):
-        # Simplified evaluation logic - replace with actual proof evaluation
-        if "implies" in user_input and "or" in user_input:
-            print("Correct! Well done.")
-            self.user_profile['correct_steps'] += 1
-        else:
-            print("Incorrect. Please review your proof steps.")
-        self.user_profile['total_steps'] += 1
+    def evaluate_user_input(self):
+        print("Evaluating your input:")
+        for line_number, details in self.proof_steps.items():
+            formatted_step = f"Premise/LineDep: {details['line_dep']}  LineNumber: ({line_number})  ProofStep: {details['step']} RuleApplied: {details['rule']}"
+            print(formatted_step)
 
-    def display_feedback(self):
-        print("Feedback:")
-        print(f"You have {self.user_profile['correct_steps']} correct steps out of {self.user_profile['total_steps']} total steps.")
 
-    def display_hint(self):
-        print("Hint: Consider using the logical equivalence rules.")
 
+   
     def start_tutor(self):
-        print("Welcome to the Logic and Proof Tutor CLI!")
+        print("\nWelcome to the Logic and Proof Tutor CLI!")
         print("Propositional connectives = ∧ , ∨ , ¬ , → ")
+        print("Variables allowed: p , q , a")
+        print("Rules Applied: ∧I, ∧E, ∨I, ∨E, →I, →E, ¬I, ¬E\n")
         self.get_user_proposition()
         self.get_user_conclusion()
         while self.premises:
             self.display_problem()
             self.initialize_proof_with_premises()
-            user_input = self.get_user_input()
-            self.evaluate_user_input(user_input)
-            self.display_feedback()
-            if self.user_profile['correct_steps'] < 2:
-                self.display_hint()
-                self.premises.pop(0)
-                self.conclusion.pop(0)
+            self.get_user_input()
+            self.evaluate_user_input()
+            print(f"\nNumber of Low-Level Hints (LH): {self.hint_count['LH']}")
+            print(f"Number of High-Level Hints (HH): {self.hint_count['HH']}")
+            return
         
         print("Congratulations! You have completed all premises in the tutor.")
 

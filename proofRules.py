@@ -18,7 +18,7 @@ class ProofRules:
             return False, "Line references must be numbers separated by commas."
 
         # Check if the rule abbreviation is valid (you might want to expand this check based on your available rules)
-        valid_rules = {"∧I", "∧E", "∨I", "∨E", "→I", "→E", "¬I", "¬E", "↔I", "↔E"}  # Add all your rule abbreviations here
+        valid_rules = {"∧I", "∧E", "∨I", "∨E", "→I", "→E", "¬I", "¬E"}  # Add all your rule abbreviations here
         if rule not in valid_rules:
             return False, f"Invalid rule. Expected one of {', '.join(valid_rules)}"
 
@@ -37,7 +37,9 @@ class ProofRules:
 
         # Convert line references from string to list of integers
         try:
-            line_refs = [int(ref) for ref in line_refs_str.split(",")]
+            line_refs = [int(ref) for ref in line_refs_str.split(",")] 
+            if len(line_refs) != 2:
+                return False, "And introduction (∧I) requires exactly two line reference."
         except ValueError:
             return False, "Line references must be integers."
 
@@ -46,25 +48,17 @@ class ProofRules:
             line_props = [self.proof_steps[line_ref]['step'] for line_ref in line_refs]
         except KeyError as e:
             return False, f"Referenced line number {e.args[0]} does not exist in proof steps."
-
+        
         # Construct the expected proof step based on the ∧I rule
-        #expected_proof_step = f"{line_props[0]} ∧ {line_props[1]}" or f"{line_props[1]} ∧ {line_props[0]}"
         expected_proof_step = [
-        f"({line_props[0]}) ∧ ({line_props[1]})",  # With brackets around both propositions
-        f"{line_props[0]} ∧ {line_props[1]}",  # Without brackets
-        f"({line_props[0]}) ∧ {line_props[1]}",  # With bracket around the first proposition
-        f"{line_props[0]} ∧ ({line_props[1]})", # With bracket around the second proposition
-        f"({line_props[1]}) ∧ ({line_props[0]})",
-        f"{line_props[1]} ∧ {line_props[0]}", 
-        f"({line_props[1]}) ∧ {line_props[0]}",  
-        f"{line_props[1]} ∧ ({line_props[0]})"   
+        f"({line_props[0]}) ∧ ({line_props[1]})", f"{line_props[0]} ∧ {line_props[1]}", f"({line_props[0]}) ∧ {line_props[1]}", f"{line_props[0]} ∧ ({line_props[1]})", f"({line_props[1]}) ∧ ({line_props[0]})",f"{line_props[1]} ∧ {line_props[0]}", f"({line_props[1]}) ∧ {line_props[0]}", f"{line_props[1]} ∧ ({line_props[0]})"   
         ]
         
         # Check if the constructed proof step matches the user's proof step
         if proof_step in expected_proof_step:
             return True, "∧I rule applied correctly."
         else:
-            return False, f"∧I rule not applied correctly. Expected step: {expected_proof_step}"
+            return False, f"∧I rule not applied correctly."
 
 
     def and_elimination(self, proof_step, rule_applied):
@@ -227,7 +221,7 @@ class ProofRules:
         if proof_step == expected_proof_step:
             return True, "→I rule applied correctly."
         else:
-            return False, f"→I rule not applied correctly. Expected step: {expected_proof_step}"
+            return False, f"→I rule not applied correctly."
 
 
 
